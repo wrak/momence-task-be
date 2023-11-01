@@ -12,6 +12,11 @@ const ratesFilename = `${rootPath}/cnb-rates.txt`;
 const ratesURL = 'http://www.cnb.cz/en/financial-markets/foreign-exchange-market/central-bank-exchange-rate-fixing/central-bank-exchange-rate-fixing/daily.txt';
 // CNB documentation doesn't provide info on specific timezone, let's assume it's CET
 const timezone = 'Europe/Prague'
+const tresholdTime = {
+    hour: 14,
+    minute: 30,
+    second: 0,
+}
 
 const app = express();
 const port = process.env.PORT || 8081;
@@ -29,12 +34,7 @@ app.use(function (_, res, next) {
 
 app.get('/api/convert', async (req, res) => {
     try {
-        if (shouldDownloadRatesFile()) {
-            await downloadRatesFile();
-            log('Rates file downloaded');
-        }
-
-        const records = await parseRatesFile();
+        const records = await getRates();
 
         const amountParam = req.query['amount'];
         if (amountParam == null || amountParam === '') {
@@ -72,12 +72,7 @@ app.get('/api/convert', async (req, res) => {
 
 app.get('/api/currencies', async (req, res) => {
     try {
-        if (shouldDownloadRatesFile()) {
-            await downloadRatesFile();
-            log('Rates file downloaded');
-        }
-
-        const records = await parseRatesFile();
+        const records = await getRates();
 
         res.json(records);
     } catch (e) {
@@ -95,6 +90,15 @@ const log = (message: any) => {
     console.log(`${new Date().toISOString()}: ${message}`)
 }
 
+const getRates = async () => {
+    if (shouldDownloadRatesFile()) {
+        await downloadRatesFile();
+        log('Rates file downloaded');
+    }
+
+    return await parseRatesFile();
+}
+
 const shouldDownloadRatesFile = () => {
     const fileStats = fs.statSync(ratesFilename, {
         throwIfNoEntry: false
@@ -108,7 +112,10 @@ const shouldDownloadRatesFile = () => {
     // did the rates changed since the last download?
     // note: Following will return true even on weekends. It's unnecessary however it won't hurt anything.
     const now = moment.utc().tz(timezone);
-    const treshold = moment(now).hour(14).minute(30).second(0);
+    const treshold = moment(now)
+        .hour(tresholdTime.hour)
+        .minute(tresholdTime.minute)
+        .second(tresholdTime.second);
     const fileModifiedTime = moment.utc(fileStats.mtime).tz(timezone);
 
     return now.isSameOrAfter(treshold) && fileModifiedTime.isBefore(treshold);
@@ -193,5 +200,3 @@ const parseRatesFile = () => {
         })
     })
 }
-
-module.exports = app;
