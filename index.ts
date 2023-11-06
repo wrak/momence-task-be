@@ -112,13 +112,17 @@ const shouldDownloadRatesFile = () => {
     // did the rates changed since the last download?
     // note: Following will return true even on weekends. It's unnecessary however it won't hurt anything.
     const now = moment.utc().tz(timezone);
-    const treshold = moment(now)
+    const fileModifiedTime = moment.utc(fileStats.mtime).tz(timezone);
+    const treshold = moment(fileModifiedTime)
         .hour(tresholdTime.hour)
         .minute(tresholdTime.minute)
-        .second(tresholdTime.second);
-    const fileModifiedTime = moment.utc(fileStats.mtime).tz(timezone);
+        .second(tresholdTime.second)
 
-    return now.isSameOrAfter(treshold) && fileModifiedTime.isBefore(treshold);
+    if (fileModifiedTime.isSameOrAfter(treshold)) {
+        treshold.add(1, 'day');
+    }
+
+    return now.isSameOrAfter(treshold);
 }
 
 const deleteRatesFile = () => {
@@ -189,7 +193,7 @@ const parseRatesFile = () => {
                             {
                                 country: row[0],
                                 code: row[3],
-                                rate: Number(row[4]),
+                                rate: Number(row[4]) / Number(row[2]),
                             }
                         ]
                     }
